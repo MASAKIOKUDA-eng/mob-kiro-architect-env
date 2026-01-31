@@ -115,6 +115,38 @@ resource "aws_security_group" "alb" {
   }
 }
 
+# IAM Role for EC2 (CloudWatch Logs)
+resource "aws_iam_role" "ec2_cloudwatch" {
+  name = "gatling-ec2-alb-cloudwatch-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "gatling-ec2-alb-cloudwatch-role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_cloudwatch" {
+  role       = aws_iam_role.ec2_cloudwatch.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
+resource "aws_iam_instance_profile" "ec2_cloudwatch" {
+  name = "gatling-ec2-alb-cloudwatch-profile"
+  role = aws_iam_role.ec2_cloudwatch.name
+}
+
 # EC2 Instances
 resource "aws_instance" "web" {
   count                  = 2
@@ -122,6 +154,9 @@ resource "aws_instance" "web" {
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.public[count.index].id
   vpc_security_group_ids = [aws_security_group.web.id]
+  iam_instance_profile   = aws_iam_instance_profile.ec2_cloudwatch.name
+
+  monitoring = true
 
   user_data = base64encode(templatefile("${path.module}/../scripts/user-data.sh", {
     server_name = "EC2-ALB-${count.index + 1}"
@@ -132,6 +167,57 @@ resource "aws_instance" "web" {
   }
 }
 
+# S3 Bucket for ALB Logs
+resource "aws_s3_bucket" "alb_logs" {
+  bucket_prefix = "gatling-alb-logs-"
+
+  tags = {
+    Name = "gatling-alb-logs"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "alb_logs" {
+  bucket = aws_s3_bucket.alb_logs.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "alb_logs" {
+  bucket = aws_s3_bucket.alb_logs.id
+
+  rule {
+    id     = "delete-old-logs"
+    status = "Enabled"
+
+    expiration {
+      days = 30
+    }
+  }
+}
+
+data "aws_elb_service_account" "main" {}
+
+resource "aws_s3_bucket_policy" "alb_logs" {
+  bucket = aws_s3_bucket.alb_logs.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          AWS = data.aws_elb_service_account.main.arn
+        }
+        Action   = "s3:PutObject"
+        Resource = "${aws_s3_bucket.alb_logs.arn}/*"
+      }
+    ]
+  })
+}
+
 # Application Load Balancer
 resource "aws_lb" "main" {
   name               = "gatling-alb"
@@ -140,9 +226,18 @@ resource "aws_lb" "main" {
   security_groups    = [aws_security_group.alb.id]
   subnets            = aws_subnet.public[*].id
 
+  enable_deletion_protection = false
+
+  access_logs {
+    bucket  = aws_s3_bucket.alb_logs.id
+    enabled = true
+  }
+
   tags = {
     Name = "gatling-alb"
   }
+
+  depends_on = [aws_s3_bucket_policy.alb_logs]
 }
 
 # Target Group
@@ -207,4 +302,46 @@ data "aws_ami" "amazon_linux_2023" {
     name   = "virtualization-type"
     values = ["hvm"]
   }
+}
+
+#
+ CloudTrail
+module "cloudtrail" {
+  source = "../modules/cloudtrail"
+
+  project_name          = "gatling-alb"
+  environment           = "prod"
+  log_retention_days    = 90
+  is_multi_region_trail = false
+}
+
+# Monitoring
+module "monitoring" {
+  source = "../modules/monitoring"
+
+  project_name         = "gatling-alb"
+  environment          = "prod"
+  aws_region           = var.aws_region
+  log_retention_days   = 7
+  enable_ec2_alarms    = true
+  enable_alb_alarms    = true
+  instance_ids         = aws_instance.web[*].id
+  alb_arn              = aws_lb.main.arn
+  target_group_arn     = aws_lb_target_group.web.arn
+  cpu_threshold        = 80
+  response_time_threshold = 1
+  create_sns_topic     = var.enable_alarm_notifications
+  alarm_email          = var.alarm_email
+  alarm_actions        = var.enable_alarm_notifications ? [module.monitoring.sns_topic_arn] : []
+}
+
+# VPC Flow Logs
+module "vpc_flow_logs" {
+  source = "../modules/vpc-flow-logs"
+
+  project_name       = "gatling-alb"
+  environment        = "prod"
+  vpc_id             = aws_vpc.main.id
+  traffic_type       = "ALL"
+  log_retention_days = 7
 }

@@ -21,6 +21,44 @@ resource "aws_s3_bucket" "website" {
   }
 }
 
+# S3 Bucket Logging
+resource "aws_s3_bucket" "logs" {
+  bucket_prefix = "gatling-web-logs-"
+
+  tags = {
+    Name = "gatling-web-logs-bucket"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "logs" {
+  bucket = aws_s3_bucket.logs.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "logs" {
+  bucket = aws_s3_bucket.logs.id
+
+  rule {
+    id     = "delete-old-logs"
+    status = "Enabled"
+
+    expiration {
+      days = 30
+    }
+  }
+}
+
+resource "aws_s3_bucket_logging" "website" {
+  bucket = aws_s3_bucket.website.id
+
+  target_bucket = aws_s3_bucket.logs.id
+  target_prefix = "s3-access-logs/"
+}
+
 # S3 Bucket Public Access Block
 resource "aws_s3_bucket_public_access_block" "website" {
   bucket = aws_s3_bucket.website.id
@@ -96,6 +134,12 @@ resource "aws_cloudfront_distribution" "website" {
   default_root_object = "index.html"
   price_class         = "PriceClass_200"
 
+  logging_config {
+    include_cookies = false
+    bucket          = aws_s3_bucket.logs.bucket_domain_name
+    prefix          = "cloudfront-logs/"
+  }
+
   origin {
     domain_name              = aws_s3_bucket.website.bucket_regional_domain_name
     origin_id                = "S3-${aws_s3_bucket.website.id}"
@@ -135,4 +179,15 @@ resource "aws_cloudfront_distribution" "website" {
   tags = {
     Name = "gatling-web-distribution"
   }
+}
+
+
+# CloudTrail
+module "cloudtrail" {
+  source = "../modules/cloudtrail"
+
+  project_name          = "gatling-s3-cf"
+  environment           = "prod"
+  log_retention_days    = 90
+  is_multi_region_trail = false
 }

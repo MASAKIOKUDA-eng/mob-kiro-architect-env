@@ -88,12 +88,47 @@ resource "aws_security_group" "web" {
   }
 }
 
+# IAM Role for EC2 (CloudWatch Logs)
+resource "aws_iam_role" "ec2_cloudwatch" {
+  name = "gatling-ec2-single-cloudwatch-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "gatling-ec2-single-cloudwatch-role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "ec2_cloudwatch" {
+  role       = aws_iam_role.ec2_cloudwatch.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
+resource "aws_iam_instance_profile" "ec2_cloudwatch" {
+  name = "gatling-ec2-single-cloudwatch-profile"
+  role = aws_iam_role.ec2_cloudwatch.name
+}
+
 # EC2 Instance
 resource "aws_instance" "web" {
   ami                    = data.aws_ami.amazon_linux_2023.id
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.web.id]
+  iam_instance_profile   = aws_iam_instance_profile.ec2_cloudwatch.name
+
+  monitoring = true
 
   user_data = base64encode(templatefile("${path.module}/../scripts/user-data.sh", {
     server_name = "EC2-Single"
@@ -122,4 +157,42 @@ data "aws_ami" "amazon_linux_2023" {
     name   = "virtualization-type"
     values = ["hvm"]
   }
+}
+
+# Clo
+udTrail
+module "cloudtrail" {
+  source = "../modules/cloudtrail"
+
+  project_name        = "gatling-single"
+  environment         = "prod"
+  log_retention_days  = 90
+  is_multi_region_trail = false
+}
+
+# Monitoring
+module "monitoring" {
+  source = "../modules/monitoring"
+
+  project_name       = "gatling-single"
+  environment        = "prod"
+  aws_region         = var.aws_region
+  log_retention_days = 7
+  enable_ec2_alarms  = true
+  enable_alb_alarms  = false
+  instance_ids       = [aws_instance.web.id]
+  cpu_threshold      = 80
+  create_sns_topic   = var.enable_alarm_notifications
+  alarm_email        = var.alarm_email
+}
+
+# VPC Flow Logs
+module "vpc_flow_logs" {
+  source = "../modules/vpc-flow-logs"
+
+  project_name       = "gatling-single"
+  environment        = "prod"
+  vpc_id             = aws_vpc.main.id
+  traffic_type       = "ALL"
+  log_retention_days = 7
 }
