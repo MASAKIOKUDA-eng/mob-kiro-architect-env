@@ -387,7 +387,7 @@ resource "aws_instance" "improved" {
 
   # ルートボリュームの暗号化
   root_block_device {
-    volume_size           = 8
+    volume_size           = 30  # 改善: AMIスナップショットサイズに合わせて30GBに変更
     volume_type           = "gp3"
     encrypted             = true  # 改善: 暗号化有効
     delete_on_termination = true
@@ -464,6 +464,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "improved" {
   rule {
     id     = "archive-old-versions"
     status = "Enabled"
+
+    # filterを追加（すべてのオブジェクトに適用）
+    filter {}
 
     noncurrent_version_transition {
       noncurrent_days = 30
