@@ -326,6 +326,23 @@ resource "aws_s3_bucket_public_access_block" "problematic" {
   restrict_public_buckets = false  # 問題: パブリックバケット制限なし
 }
 
+# S3バケット所有権設定（ACLを使用するため）
+resource "aws_s3_bucket_ownership_controls" "problematic" {
+  bucket = aws_s3_bucket.problematic.id
+
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+# バケットレベルのACL設定
+resource "aws_s3_bucket_acl" "problematic" {
+  depends_on = [aws_s3_bucket_ownership_controls.problematic]
+  
+  bucket = aws_s3_bucket.problematic.id
+  acl    = "public-read"
+}
+
 # 問題: バージョニング無効（意図的に設定しない）
 # 誤削除時に復旧不可
 
@@ -341,8 +358,8 @@ resource "aws_s3_object" "sample" {
   key     = "sample-data.txt"
   content = "This is a sample file in a bucket with security issues"
 
-  # 問題: パブリック読み取り可能
-  acl = "public-read"
+  # 問題: パブリック読み取り可能（バケットレベルのACLで設定）
+  # acl = "public-read"  # オブジェクトレベルのACLは削除
 
   tags = {
     Issue = "public-readable-object"

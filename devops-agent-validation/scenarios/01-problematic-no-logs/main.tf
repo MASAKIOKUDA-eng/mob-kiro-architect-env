@@ -335,18 +335,40 @@ resource "aws_s3_bucket_public_access_block" "problematic" {
 # 問題: ライフサイクルポリシーなし
 # 古いデータが残り続けてコスト増加
 
+# S3バケットのACL設定（問題: ACL有効化）
+resource "aws_s3_bucket_ownership_controls" "problematic" {
+  bucket = aws_s3_bucket.problematic.id
+
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+# S3バケットのACL（問題: パブリックアクセス可能）
+resource "aws_s3_bucket_acl" "problematic" {
+  depends_on = [
+    aws_s3_bucket_ownership_controls.problematic,
+    aws_s3_bucket_public_access_block.problematic
+  ]
+
+  bucket = aws_s3_bucket.problematic.id
+  acl    = "public-read"
+}
+
 # サンプルファイルをアップロード（問題を示すため）
 resource "aws_s3_object" "sample" {
   bucket  = aws_s3_bucket.problematic.id
   key     = "sample-data.txt"
   content = "This is a sample file in a bucket with security issues"
 
-  # 問題: パブリック読み取り可能
-  acl = "public-read"
+  # ACLは削除（バケットレベルのACLを使用）
+  # acl = "public-read"
 
   tags = {
-    Issue = "public-readable-object"
+    Issue = "public-readable-object-via-bucket-policy"
   }
+  
+  depends_on = [aws_s3_bucket_acl.problematic]
 }
 
 # ============================================
