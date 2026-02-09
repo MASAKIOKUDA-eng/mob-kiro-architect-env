@@ -8,7 +8,7 @@ output "issues_summary" {
     }
     server_issues = {
       iam_role          = "No IAM role - hardcoded credentials in user data"
-      ami               = "Old AMI (2023-01-19) - security patches missing"
+      ami               = "Using Amazon Linux 2 (in production, using old AMI versions is a security risk)"
       monitoring        = "Detailed monitoring disabled"
       ssm               = "SSM Agent not configured"
       cloudwatch_agent  = "CloudWatch Agent not installed"

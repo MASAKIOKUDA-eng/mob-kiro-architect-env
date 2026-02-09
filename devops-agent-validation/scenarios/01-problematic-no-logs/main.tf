@@ -387,20 +387,30 @@ data "aws_availability_zones" "available" {
   state = "available"
 }
 
-# 問題: 古いAMIを意図的に使用
+# 問題: パッチ未適用のAMIを使用（検証用に最新のAL2を使用するが、本来は古いバージョンを使うべきでない）
+# 実環境では特定の古いバージョンを指定することで脆弱性が残る
 data "aws_ami" "old_amazon_linux" {
-  most_recent = false
+  most_recent = true
   owners      = ["amazon"]
 
   filter {
     name   = "name"
-    values = ["amzn2-ami-hvm-2.0.20230119.1-x86_64-gp2"]
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
   }
 
   filter {
     name   = "virtualization-type"
     values = ["hvm"]
   }
+  
+  filter {
+    name   = "state"
+    values = ["available"]
+  }
+  
+  # 注: 検証環境では最新のAL2を使用
+  # 実際の問題シナリオでは、古い特定バージョンを指定することで
+  # セキュリティパッチが適用されていない状態を再現
 }
 
 data "aws_caller_identity" "current" {}

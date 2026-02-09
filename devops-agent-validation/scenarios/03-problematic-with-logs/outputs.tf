@@ -8,7 +8,7 @@ output "issues_summary" {
     }
     server_issues = {
       iam_role_note     = "IAM role attached BUT only for logging - still has hardcoded credentials"
-      ami               = "Old AMI (2023-01-19) - security patches missing"
+      ami               = "Using Amazon Linux 2 (in production, using old AMI versions is a security risk)"
       monitoring        = "Detailed monitoring ENABLED (for comparison)"
       cloudwatch_agent  = "CloudWatch Agent INSTALLED (for logging)"
       root_volume       = "Root volume not encrypted"
