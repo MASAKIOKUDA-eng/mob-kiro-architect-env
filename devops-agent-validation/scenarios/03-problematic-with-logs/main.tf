@@ -337,7 +337,10 @@ resource "aws_s3_bucket_ownership_controls" "problematic" {
 
 # バケットレベルのACL設定
 resource "aws_s3_bucket_acl" "problematic" {
-  depends_on = [aws_s3_bucket_ownership_controls.problematic]
+  depends_on = [
+    aws_s3_bucket_ownership_controls.problematic,
+    aws_s3_bucket_public_access_block.problematic
+  ]
   
   bucket = aws_s3_bucket.problematic.id
   acl    = "public-read"
