@@ -337,12 +337,16 @@ resource "aws_s3_bucket_public_access_block" "problematic" {
 
 # サンプルファイルをアップロード（問題を示すため）
 resource "aws_s3_object" "sample" {
+  depends_on = [
+    aws_s3_bucket_acl.problematic
+  ]
+  
   bucket  = aws_s3_bucket.problematic.id
   key     = "sample-data.txt"
   content = "This is a sample file in a bucket with security issues"
 
-  # 問題: パブリック読み取り可能
-  acl = "public-read"
+  # 問題: パブリック読み取り可能（バケットレベルのACLで設定）
+  # acl = "public-read"  # オブジェクトレベルのACLは削除
 
   tags = {
     Issue = "public-readable-object"

@@ -357,6 +357,10 @@ resource "aws_s3_bucket_acl" "problematic" {
 
 # サンプルファイルをアップロード（問題を示すため）
 resource "aws_s3_object" "sample" {
+  depends_on = [
+    aws_s3_bucket_acl.problematic
+  ]
+  
   bucket  = aws_s3_bucket.problematic.id
   key     = "sample-data.txt"
   content = "This is a sample file in a bucket with security issues"
