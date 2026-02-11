@@ -371,8 +371,6 @@ resource "aws_s3_object" "sample" {
   tags = {
     Issue = "public-readable-object-via-bucket-policy"
   }
-  
-  depends_on = [aws_s3_bucket_acl.problematic]
 }
 
 # ============================================
