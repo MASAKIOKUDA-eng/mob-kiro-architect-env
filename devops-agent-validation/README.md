@@ -28,6 +28,16 @@ AWS Well-Architectedフレームワークに基づいた、ログ出力の有無
 - VPCフローログ: ✅ 有効
 - **用途**: 理想的な環境（セキュリティ + 可観測性）
 
+### シナリオ5: ECR/Lambda 問題のある環境
+- ECR: イメージスキャン無効、ミュータブルタグ、過度に開放されたポリシー
+- Lambda: プレーンテキストのシークレット、過剰な権限、認証なしのFunction URL
+- **用途**: コンテナとサーバーレスのセキュリティ問題を検証
+
+### シナリオ6: ECR/Lambda 改善された環境
+- ECR: イメージスキャン有効、イミュータブルタグ、KMS暗号化、ライフサイクルポリシー
+- Lambda: Secrets Manager統合、最小権限IAM、DLQ、X-Rayトレーシング、VPC設定
+- **用途**: コンテナとサーバーレスのベストプラクティスを実装
+
 ## 検証観点
 
 ### 1. ネットワーク観点（3つ）
@@ -81,6 +91,85 @@ AWS Well-Architectedフレームワークに基づいた、ログ出力の有無
 - **影響**: データ損失リスク
 - **Well-Architected**: 信頼性の柱
 
+### 4. コンテナ観点（5つ - シナリオ5/6）
+
+#### 検証1: ECRイメージスキャン無効
+- **問題**: 脆弱性のあるイメージの検出不可
+- **影響**: セキュリティリスク
+- **Well-Architected**: セキュリティの柱
+
+#### 検証2: ミュータブルなイメージタグ
+- **問題**: タグの上書きによる再現性の欠如
+- **影響**: デプロイメントの信頼性低下
+- **Well-Architected**: 運用の優秀性の柱
+
+#### 検証3: ECRライフサイクルポリシー未設定
+- **問題**: 古いイメージの蓄積
+- **影響**: ストレージコスト増加
+- **Well-Architected**: コスト最適化の柱
+
+#### 検証4: 過度に開放されたECRポリシー
+- **問題**: すべてのAWSアカウントがイメージをプル可能
+- **影響**: 不正アクセスリスク
+- **Well-Architected**: セキュリティの柱
+
+#### 検証5: ECR暗号化設定なし
+- **問題**: カスタマー管理キーによる暗号化なし
+- **影響**: データ保護の不足
+- **Well-Architected**: セキュリティの柱
+
+### 5. サーバーレス観点（10個 - シナリオ5/6）
+
+#### 検証1: プレーンテキストのシークレット
+- **問題**: 環境変数に機密情報を平文保存
+- **影響**: 認証情報漏洩リスク
+- **Well-Architected**: セキュリティの柱
+
+#### 検証2: 過剰なIAM権限
+- **問題**: AdministratorAccess権限の付与
+- **影響**: 権限昇格リスク
+- **Well-Architected**: セキュリティの柱
+
+#### 検証3: デッドレターキュー未設定
+- **問題**: 失敗した実行の損失
+- **影響**: データ損失、デバッグ困難
+- **Well-Architected**: 信頼性の柱
+
+#### 検証4: X-Rayトレーシング無効
+- **問題**: 可観測性の欠如
+- **影響**: トラブルシューティング困難
+- **Well-Architected**: 運用の優秀性の柱
+
+#### 検証5: 認証なしのFunction URL
+- **問題**: パブリックアクセス可能
+- **影響**: 不正利用リスク
+- **Well-Architected**: セキュリティの柱
+
+#### 検証6: 無制限のログ保持
+- **問題**: CloudWatch Logsの保持期間未設定
+- **影響**: コスト増加
+- **Well-Architected**: コスト最適化の柱
+
+#### 検証7: VPC設定なし
+- **問題**: ネットワーク分離なし
+- **影響**: セキュリティリスク
+- **Well-Architected**: セキュリティの柱
+
+#### 検証8: バージョニング・エイリアスなし
+- **問題**: デプロイメント管理の欠如
+- **影響**: ロールバック困難
+- **Well-Architected**: 運用の優秀性の柱
+
+#### 検証9: 過剰なタイムアウト設定
+- **問題**: 900秒のタイムアウト
+- **影響**: 暴走関数によるコスト増加
+- **Well-Architected**: コスト最適化の柱
+
+#### 検証10: 過剰なメモリ割り当て
+- **問題**: 10GBのメモリ設定
+- **影響**: 不要なコスト
+- **Well-Architected**: コスト最適化の柱
+
 ## ログ出力による比較
 
 | 項目 | ログなし（S1/S2） | ログあり（S3/S4） |
@@ -97,10 +186,12 @@ AWS Well-Architectedフレームワークに基づいた、ログ出力の有無
 devops-agent-validation/
 ├── README.md
 ├── scenarios/
-│   ├── 01-problematic-no-logs/        # 問題あり + ログなし
-│   ├── 02-improved-no-logs/           # 改善済み + ログなし
-│   ├── 03-problematic-with-logs/      # 問題あり + ログあり
-│   └── 04-improved-with-logs/         # 改善済み + ログあり
+│   ├── 01-problematic-no-logs/        # 問題あり + ログなし (EC2/S3/VPC)
+│   ├── 02-improved-no-logs/           # 改善済み + ログなし (EC2/S3/VPC)
+│   ├── 03-problematic-with-logs/      # 問題あり + ログあり (EC2/S3/VPC)
+│   ├── 04-improved-with-logs/         # 改善済み + ログあり (EC2/S3/VPC)
+│   ├── 05-ecr-lambda-problematic/     # 問題あり (ECR/Lambda)
+│   └── 06-ecr-lambda-improved/        # 改善済み (ECR/Lambda)
 └── docs/
     ├── comparison-matrix.md           # 比較表
     └── validation-guide.md            # 検証ガイド
@@ -136,6 +227,22 @@ terraform apply
 
 ```bash
 cd scenarios/04-improved-with-logs
+terraform init
+terraform apply
+```
+
+### 5. シナリオ5をデプロイ（ECR/Lambda問題あり）
+
+```bash
+cd scenarios/05-ecr-lambda-problematic
+terraform init
+terraform apply
+```
+
+### 6. シナリオ6をデプロイ（ECR/Lambda改善済み）
+
+```bash
+cd scenarios/06-ecr-lambda-improved
 terraform init
 terraform apply
 ```
