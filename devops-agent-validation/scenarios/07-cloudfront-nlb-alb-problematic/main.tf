@@ -1,4 +1,5 @@
-# CloudFront + NLB + ALB + EC2 構成（5つのネットワーク設定ミスを含む）
+# CloudFront + NLB + ALB + EC2 構成（8つのネットワーク・運用設定ミスを含む）
+# すべて terraform apply は成功するが、実運用で問題が発生するパターン
 terraform {
   required_version = ">= 1.0"
   required_providers {
@@ -33,7 +34,7 @@ resource "aws_internet_gateway" "main" {
   }
 }
 
-# 【設定ミス1】Public Subnets - 異なるAZに配置されていない
+# Public Subnets
 resource "aws_subnet" "public_1" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.1.0/24"
@@ -48,7 +49,7 @@ resource "aws_subnet" "public_1" {
 resource "aws_subnet" "public_2" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = "10.0.2.0/24"
-  availability_zone       = "ap-northeast-1a"  # 問題：同じAZを使用
+  availability_zone       = "ap-northeast-1c"
   map_public_ip_on_launch = true
 
   tags = {
@@ -155,6 +156,50 @@ resource "aws_route_table_association" "private_2" {
   route_table_id = aws_route_table.private.id
 }
 
+# 【設定ミス6】NACL - エフェメラルポートを許可していない
+# インバウンドでHTTP(80)を許可しているが、レスポンスに必要なエフェメラルポートの
+# アウトバウンドルールがないため、ALB→EC2の通信が成立しない
+resource "aws_network_acl" "private" {
+  vpc_id     = aws_vpc.main.id
+  subnet_ids = [aws_subnet.private_1.id, aws_subnet.private_2.id, aws_subnet.private_3.id]
+
+  # インバウンド：HTTP許可
+  ingress {
+    protocol   = "tcp"
+    rule_no    = 100
+    action     = "allow"
+    cidr_block = "10.0.0.0/16"
+    from_port  = 80
+    to_port    = 80
+  }
+
+  # インバウンド：NAT Gatewayからの戻りトラフィック用エフェメラルポート許可
+  ingress {
+    protocol   = "tcp"
+    rule_no    = 200
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 1024
+    to_port    = 65535
+  }
+
+  # アウトバウンド：HTTPS(443)のみ許可
+  # 問題：エフェメラルポート(1024-65535)のアウトバウンドが許可されていないため、
+  # インバウンドHTTPリクエストへのレスポンスが返せない
+  egress {
+    protocol   = "tcp"
+    rule_no    = 100
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"
+    from_port  = 443
+    to_port    = 443
+  }
+
+  tags = {
+    Name = "private-nacl"
+  }
+}
+
 resource "aws_route_table_association" "private_3" {
   subnet_id      = aws_subnet.private_3.id
   route_table_id = aws_route_table.private.id
@@ -245,12 +290,12 @@ resource "aws_lb" "main" {
   }
 }
 
-# 【設定ミス3】Network Load Balancer - 不適切なサブネット配置
+# 【設定ミス3】Network Load Balancer - 不適切な構成
 resource "aws_lb" "nlb" {
   name               = "cloudfront-nlb"
-  internal           = false  # 問題：内部用途なのにインターネット向けに設定
+  internal           = true  # 問題：内部NLBだがCloudFrontからアクセスできない
   load_balancer_type = "network"
-  subnets            = [aws_subnet.public_1.id, aws_subnet.public_2.id]  # 問題：プライベートサブネットを使用すべき
+  subnets            = [aws_subnet.private_1.id, aws_subnet.private_2.id]
 
   enable_deletion_protection = false
 
@@ -290,14 +335,16 @@ resource "aws_lb_target_group" "nlb_tg" {
   protocol = "TCP"
   vpc_id   = aws_vpc.main.id
 
-  # 問題：NLBのターゲットグループでHTTPヘルスチェックを使用
+  # 問題：NLBのターゲットグループでHTTPヘルスチェックを使用しているが、
+  # ヘルスチェックパスが存在しない "/healthz" を指定しているため、
+  # ターゲットが常にunhealthyになる
   health_check {
     enabled             = true
     healthy_threshold   = 2
     interval            = 30
     port                = "traffic-port"
-    protocol            = "HTTP"  # 問題：TCPを使用すべき
-    timeout             = 6
+    protocol            = "HTTP"
+    path                = "/healthz"  # 問題：存在しないパスを指定
     unhealthy_threshold = 2
   }
 
@@ -335,7 +382,9 @@ resource "aws_launch_template" "web" {
   name_prefix   = "web-server-"
   image_id      = var.ami_id
   instance_type = var.instance_type
-  key_name      = var.key_pair_name
+  # 【設定ミス1】キーペアなしでEC2を起動 - SSH接続できない
+  # key_name が未設定のため、インスタンスにSSHログインできない
+  # key_name      = var.key_pair_name
 
   vpc_security_group_ids = [aws_security_group.ec2.id]
 
@@ -354,13 +403,14 @@ resource "aws_launch_template" "web" {
   }
 }
 
-# Auto Scaling Group
+# 【設定ミス7】Auto Scaling Group - ヘルスチェック猶予期間が短すぎる
 resource "aws_autoscaling_group" "web" {
   name                = "web-asg"
   vpc_zone_identifier = [aws_subnet.private_1.id, aws_subnet.private_2.id, aws_subnet.private_3.id]
   target_group_arns   = [aws_lb_target_group.alb_tg.arn, aws_lb_target_group.nlb_tg.arn]
   health_check_type   = "ELB"
-  health_check_grace_period = 300
+  # 問題：猶予期間が短すぎてアプリ起動前にunhealthy判定→無限に置き換えが発生
+  health_check_grace_period = 10
 
   min_size         = 3
   max_size         = 3
@@ -404,6 +454,9 @@ resource "aws_cloudfront_distribution" "main" {
 
     forwarded_values {
       query_string = false
+      # 【設定ミス8】Cookie/ヘッダーを一切転送しない設定
+      # 問題：セッション管理やAPI通信でCookieやHostヘッダーが必要だが転送されない
+      headers      = []
       cookies {
         forward = "none"
       }
