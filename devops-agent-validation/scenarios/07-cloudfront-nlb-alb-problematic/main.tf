@@ -162,7 +162,7 @@ resource "aws_route_table_association" "private_3" {
 
 # 【設定ミス2】Security Group for ALB - 過度に開放的
 resource "aws_security_group" "alb" {
-  name_description = "Security group for ALB"
+  description = "Security group for ALB"
   vpc_id          = aws_vpc.main.id
 
   ingress {
