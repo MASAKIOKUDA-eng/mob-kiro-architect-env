@@ -201,7 +201,7 @@ resource "aws_security_group" "alb" {
 
 # Security Group for EC2
 resource "aws_security_group" "ec2" {
-  name_description = "Security group for EC2 instances"
+  description = "Security group for EC2 instances"
   vpc_id          = aws_vpc.main.id
 
   ingress {
