@@ -1,5 +1,6 @@
 ---
-inclusion: manual
+name: fix-cloudfront-cache-ttl
+description: CloudFrontのキャッシュTTLが長すぎてデプロイ後も古いコンテンツが配信される問題を修正する。S3更新後にCloudFrontで反映されない場合に使用。
 ---
 
 # Skill: CloudFront キャッシュTTL修正

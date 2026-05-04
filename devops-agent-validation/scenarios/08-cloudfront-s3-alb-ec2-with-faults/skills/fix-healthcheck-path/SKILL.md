@@ -1,5 +1,6 @@
 ---
-inclusion: manual
+name: fix-healthcheck-path
+description: ALBターゲットグループのヘルスチェックパスとアプリケーションの実際のエンドポイントが不一致で全ターゲットがunhealthyになる問題を修正する。503エラーが全リクエストで発生する場合に使用。
 ---
 
 # Skill: ALBヘルスチェックパス不一致の修正

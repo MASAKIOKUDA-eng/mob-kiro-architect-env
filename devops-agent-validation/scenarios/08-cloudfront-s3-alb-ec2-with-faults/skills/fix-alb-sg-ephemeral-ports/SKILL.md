@@ -1,5 +1,6 @@
 ---
-inclusion: manual
+name: fix-alb-sg-ephemeral-ports
+description: ALBセキュリティグループのegressにエフェメラルポートが未許可でヘルスチェックが失敗する問題を修正する。ALBターゲットがunhealthyになった場合やVPC Flow LogsにREJECTが多数ある場合に使用。
 ---
 
 # Skill: ALBセキュリティグループ エフェメラルポート修正

@@ -1,5 +1,6 @@
 ---
-inclusion: manual
+name: fix-disk-space
+description: EC2インスタンスのディスク容量不足を復旧する。cronジョブによるログ肥大化でアプリがクラッシュした場合に使用。DiskSpaceUtilization 90%超やアプリ503エラー時に適用。
 ---
 
 # Skill: ディスク容量不足の復旧

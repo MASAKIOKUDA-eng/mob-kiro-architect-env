@@ -1,5 +1,6 @@
 ---
-inclusion: manual
+name: investigate-service-degradation
+description: CloudFront+S3+ALB+EC2構成のWebサービスでサービス劣化が報告された場合の体系的な調査手順。アラーム確認からログ分析、根本原因特定までの総合調査フローを提供。
 ---
 
 # Skill: サービス劣化の総合調査手順

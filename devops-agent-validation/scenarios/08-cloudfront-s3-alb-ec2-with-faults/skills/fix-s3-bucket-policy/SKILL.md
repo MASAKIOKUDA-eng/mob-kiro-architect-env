@@ -1,5 +1,6 @@
 ---
-inclusion: manual
+name: fix-s3-bucket-policy
+description: S3バケットポリシーのDenyルールによりCloudFront OAC経由でもCSS/JSが403エラーになる問題を修正する。静的コンテンツが表示されない場合やCloudFront 4xxErrorRateが高い場合に使用。
 ---
 
 # Skill: S3バケットポリシー修正（CloudFront OACアクセス許可）

@@ -1,5 +1,6 @@
 ---
-inclusion: manual
+name: fix-cloudwatch-agent-config
+description: CloudWatch Agentの設定ミスでログファイルパスが間違っておりログが収集されない問題を修正する。CloudWatch LogsにIncomingLogEventsが0の場合に使用。
 ---
 
 # Skill: CloudWatch Agent 設定ミス修正

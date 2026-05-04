@@ -1,5 +1,6 @@
 ---
-inclusion: manual
+name: fix-ec2-sg-outbound
+description: EC2セキュリティグループのegressでHTTP(80)が未許可のため外部API通信やパッケージ更新が失敗する問題を修正する。connection timeoutやyum/dnf失敗時に使用。
 ---
 
 # Skill: EC2セキュリティグループ アウトバウンド修正

@@ -1,5 +1,6 @@
 ---
-inclusion: manual
+name: fix-autoscaling-cooldown
+description: Auto Scalingのクールダウン期間が長すぎて負荷急増時にスケールアウトが遅延する問題を修正する。レスポンスタイム悪化やTargetResponseTimeアラーム発火時に使用。
 ---
 
 # Skill: Auto Scaling クールダウン期間修正
