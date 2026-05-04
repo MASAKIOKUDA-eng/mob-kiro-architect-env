@@ -64,7 +64,7 @@ if (!fs.existsSync('/var/log/api')) {
 
 // ミドルウェア: アクセスログ記録
 app.use((req, res, next) => {
-  const logEntry = `${new Date().toISOString()} ${req.method} ${req.url} ${req.ip}\n`;
+  const logEntry = `$${new Date().toISOString()} $${req.method} $${req.url} $${req.ip}\n`;
   fs.appendFileSync(accessLog, logEntry);
   next();
 });
@@ -105,14 +105,14 @@ app.get('/api/users', (req, res) => {
 
 // エラーハンドリング
 app.use((err, req, res, next) => {
-  const errorEntry = `${new Date().toISOString()} ERROR: ${err.message}\n${err.stack}\n`;
+  const errorEntry = `$${new Date().toISOString()} ERROR: $${err.message}\n$${err.stack}\n`;
   fs.appendFileSync(errorLog, errorEntry);
   res.status(500).json({ error: 'Internal Server Error' });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`API server running on port ${PORT}`);
-  console.log(`Health check: http://localhost:${PORT}/api/health`);
+  console.log(`API server running on port $${PORT}`);
+  console.log(`Health check: http://localhost:$${PORT}/api/health`);
 });
 EOF
 
